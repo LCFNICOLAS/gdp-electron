@@ -9,7 +9,8 @@
 
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --publish never"
+    "build": "electron-builder --publish never",
+    "build:mac:intel": "electron-builder --mac --x64 --publish never"
   },
 
   "devDependencies": {
