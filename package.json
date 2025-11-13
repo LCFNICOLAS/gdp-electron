@@ -4,17 +4,23 @@
   "private": true,
   "type": "commonjs",
   "main": "main.js",
+  "description": "Application GDP de gestion de production",
+  "author": "Le Casier Français",
+
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --publish never"
   },
+
   "devDependencies": {
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
+
   "build": {
     "productName": "GDP",
     "appId": "com.lecasierfrancais.gdp",
+
     "files": [
       "**/*",
       "!**/*.md",
@@ -25,7 +31,8 @@
     "mac": {
       "target": ["dmg", "zip"],
       "icon": "frontend/assets/logo.icns",
-      "artifactName": "GDP-${version}-mac.${ext}"
+      "artifactName": "GDP-${version}-mac.${ext}",
+      "minimumSystemVersion": "12.0.0"
     },
 
     "win": {
