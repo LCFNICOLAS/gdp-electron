@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDP - Gestion de Production</title>
+    <link rel="stylesheet" href="../css/index.css">
+    <link rel="stylesheet" href="../css/popup.css">
+    <link rel="stylesheet" href="../css/notifications.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+
+</head>
+<body>
+
+    <!-- Toasts (notifications WAGO) -->
+    <div id="notifContainer" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i data-lucide="wine"></i>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-page="dashboard" title="Tableau de bord">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span class="tooltip">Tableau de bord</span>
+                </button>
+                <button class="nav-item" data-page="orders" title="Commandes">
+                    <i data-lucide="shopping-cart"></i>
+                    <span class="tooltip">Commandes</span>
+                </button>
+                <!-- Filtres de commandes -->
+                <button class="nav-item" data-page="orders" data-filter="orders_progress" title="Commandes en cours">
+                <i data-lucide="loader-2"></i>
+                <span class="tooltip">Commandes en cours</span>
+                </button>
+                <button class="nav-item" data-page="orders" data-filter="orders_stock" title="Commandes en stock">
+                <i data-lucide="package"></i>
+                <span class="tooltip">Commandes en stock</span>
+                </button>
+                <button class="nav-item" data-page="orders" data-filter="orders_delivered" title="Commandes livrées">
+                <i data-lucide="truck"></i>
+                <span class="tooltip">Commandes livrées</span>
+                </button>
+                <button class="nav-item" data-page="orders" data-filter="orders_marketing" title="Marketing">
+                <i data-lucide="megaphone"></i>
+                <span class="tooltip">Marketing</span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-wrapper">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="search-container">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Rechercher..." class="search-input">
+                </div>
+                
+                <div class="header-actions">
+                    <button class="icon-button">
+                        <i data-lucide="bell"></i>
+                        <span class="notification-badge"></span>
+                    </button>
+                    <button class="icon-button">
+                        <i data-lucide="settings"></i>
+                    </button>
+                    <button class="icon-button user-menu">
+                        <div class="user-avatar-header">
+                            <i data-lucide="user"></i>
+                        </div>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="page-content">
+                <!-- Dashboard Page -->
+                <div id="page-dashboard" class="page active">
+                    <div class="page-header">
+                        <div>
+                            <h1>Tableau de bord</h1>
+                            <p class="subtitle">Vue d'ensemble de votre activité</p>
+                        </div>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                        <div class="stat-icon blue"><i data-lucide="shopping-cart"></i></div>
+                        </div>
+                        <div class="stat-content">
+                        <p class="stat-label">Commandes en cours</p>
+                        <p class="stat-value" id="stat-en-cours">0</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                        <div class="stat-icon purple"><i data-lucide="factory"></i></div>
+                        </div>
+                        <div class="stat-content">
+                        <p class="stat-label">Commandes en stock</p>
+                        <p class="stat-value" id="stat-stock">0</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                        <div class="stat-icon green"><i data-lucide="package"></i></div>
+                        </div>
+                        <div class="stat-content">
+                        <p class="stat-label">Commandes livrées</p>
+                        <p class="stat-value" id="stat-livre">0</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                        <div class="stat-icon amber"><i data-lucide="trending-up"></i></div>
+                        </div>
+                        <div class="stat-content">
+                        <p class="stat-label">CA du mois</p>
+                        <p class="stat-value" id="stat-ca-mois">0 €</p>
+                        </div>
+                    </div>
+                    </div>
+
+
+                    <!-- Charts -->
+                    <div class="charts-grid">
+                        <div class="card chart-card large">
+                            <div class="card-header">
+                                <h3>Évolution des commandes</h3>
+                                <p class="card-subtitle">Performance sur 6 mois</p>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="ordersChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card chart-card">
+                            <div class="card-header">
+                                <h3>Répartition produits</h3>
+                                <p class="card-subtitle">Par catégorie</p>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="pieChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Orders Page -->
+                <div id="page-orders" class="page">
+                  <div class="page-header">
+                    <div>
+                      <h1>Commandes</h1>
+                      <p class="subtitle">Gérez vos commandes clients</p>
+                    </div>
+                    <div class="flex-row gap-3">
+                      <button class="btn btn-outline">
+                        <i data-lucide="download"></i>
+                        Exporter
+                      </button>
+                    <button class="btn btn-primary" onclick="openOrderWizard()">
+                    <i data-lucide="plus"></i>
+                    Nouvelle commande
+                    </button>
+                    </div>
+                  </div>
+
+                  <div class="card search-card">
+                    <div class="search-bar">
+                      <i data-lucide="search"></i>
+                      <input id="orders-search" type="text" placeholder="Rechercher (client, n° client, contact)...">
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="table-container">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th>Statut</th>
+                            <th>N° Client</th>
+                            <th>Nom client</th>
+                            <th>Contact client</th>
+                            <th>Montant HT</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody id="ordersTableBody"><!-- rempli par JS --></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Production Page -->
+                <div id="page-clients" class="page">
+                  <div class="page-header">
+                    <div>
+                      <h1>Clients</h1>
+                      <p class="subtitle">Liste des clients & accès</p>
+                    </div>
+                    <div class="flex-row gap-3">
+                      <button class="btn btn-outline">
+                        <i data-lucide="download"></i>
+                        Exporter
+                      </button>
+                      <button class="btn btn-primary" onclick="openModal('clientModal')">
+                        <i data-lucide="plus"></i>
+                        Nouveau client
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="card search-card">
+                    <div class="search-bar">
+                      <i data-lucide="search"></i>
+                      <input id="clients-search" type="text" placeholder="Rechercher par nom, N° de série, version, connexion…">
+                    </div>
+                  </div>
+
+                  <div class="card">
+                    <div class="table-container">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th>Nom client</th>
+                            <th>Numéro de série</th>
+                            <th>Version</th>
+                            <th>MDP</th>
+                            <th>Type de connexion</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody id="clientsTableBody"><!-- rempli par JS --></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal for adding order (hidden by default) -->
+    <div id="orderModal" class="fullscreen-form">
+        <!-- Header -->
+        <div class="fullscreen-header">
+            <div>
+                <h1>Nouvelle commande</h1>
+                <p class="subtitle">Créer une nouvelle commande client</p>
+            </div>
+            
+            <div class="flex-row gap-3">
+                <button class="btn btn-outline" onclick="closeModal('orderModal')">
+                    <i data-lucide="x"></i>
+                    Annuler
+                </button>
+                <button class="btn btn-outline">
+                    <i data-lucide="eye"></i>
+                    Aperçu
+                </button>
+                <button class="btn btn-primary" onclick="saveOrder()">
+                    <i data-lucide="save"></i>
+                    Enregistrer
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="fullscreen-content">
+            <div class="fullscreen-container">
+                
+                <!-- Informations générales -->
+                <div class="form-section full-width">
+                  <div class="card">
+                    <h2 class="section-title">Informations générales</h2>
+
+                    <!-- Ligne 1 : 1 colonne = NOM_CLIENT -->
+                    <div class="form-grid-1">
+                      <div class="form-group required">
+                        <label>Nom Client</label>
+                        <input type="text" class="form-input" id="NOM_CLIENT" placeholder="Nom du client" required>
+                      </div>
+                    </div>
+
+                    <!-- Ligne 2 : 3 colonnes = STATUT, N_CLIENT, NOM_COMMERCIAL -->
+                    <div class="form-grid-3">
+                      <div class="form-group">
+                        <label>Statut</label>
+                        <input type="text" class="form-input" id="STATUT" placeholder="" required>
+                      </div>
+
+                      <div class="form-group">
+                        <label>N° Client</label>
+                        <input type="text" class="form-input" id="N_CLIENT" placeholder="Ex: CLI-2024-001" required>
+                      </div>
+
+                      <div class="form-group">
+                        <label>Nom Commercial</label>
+                        <input type="text" class="form-input" id="NOM_COMMERCIAL" placeholder="Commercial responsable">
+                      </div>
+
+                      <div class="form-group">
+                        <label>N° de devis</label>
+                        <input type="text" class="form-input" id="N_DEVIS" placeholder="">
+                      </div>
+
+                      <div class="form-group">
+                        <label>Organisme de financement</label>
+                        <input type="text" class="form-input" id="ORG_FINANCEMENT" placeholder="">
+                      </div>
+
+                      <div class="form-group">
+                        <label>Montant HT</label>
+                        <input type="text" class="form-input" id="MONTANT_HT" placeholder="">
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Informations clients -->
+                <div class="form-section">
+                    <div class="card">
+                        <h2 class="section-title">Informations clients</h2>
+                        
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label>Contact Client</label>
+                                <input type="text" class="form-input" id="CONTACT_CLIENT" placeholder="">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Téléphone</label>
+                                <input type="text" class="form-input" id="TELEPHONE_CLIENT" placeholder="">
+                            </div>
+                            <div class="form-group">
+                                <label>Email Client</label>
+                                <input type="text" class="form-input" id="EMAIL_CLIENT" placeholder="">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Email Facturation</label>
+                                <input type="text" class="form-input" id="EMAIL_FACTURATION" placeholder="">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations clients -->
+                <div class="form-section">
+                <div class="card">
+                    <h2 class="section-title">Informations Adresses</h2>
+
+                    <div class="adresse-wrapper">
+                    <!-- Colonne de gauche : carte -->
+                    <div class="map-column">
+                        <div id="map-container"></div>
+                    </div>
+
+                    <!-- Colonne de droite : formulaire -->
+                    <div class="form-column">
+                        <div class="form-grid-1">
+                        <div class="form-group">
+                            <label>Voie d'installation</label>
+                            <input type="text" class="form-input" id="VOIE_INSTALLATION" placeholder="">
+                        </div>
+                        </div>
+
+                        <div class="form-grid-3">
+                        <div class="form-group">
+                            <label>Ville d'installation</label>
+                            <input type="text" class="form-input" id="VILLE_INSTALLATION" placeholder="">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Code Postal</label>
+                            <input type="text" class="form-input" id="CP_INSTALLATION" placeholder="">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Pays</label>
+                            <input type="text" class="form-input" id="PAYS" placeholder="">
+                        </div>
+                        </div>
+
+                        <div class="form-grid-1">
+                        <div class="form-group">
+                            <label>Adresse de facturation</label>
+                            <input type="text" class="form-input" id="VOIE_FACTURATION" placeholder="">
+                        </div>
+
+                        <div class="form-grid-3">
+                        <div class="form-group">
+                            <label>Ville d'installation</label>
+                            <input type="text" class="form-input" id="VILLE_FACTURATION" placeholder="">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Code Postal</label>
+                            <input type="text" class="form-input" id="CP_FACTURATION" placeholder="">
+                        </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Coordonnées Géographiques</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="text" class="form-input" id="GEOGRAPHIE" placeholder="" readonly>
+                            <button type="button" class="btn btn-secondary" id="btn-geocode">Générer</button>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                </div>
+
+
+                <!-- Informations logistiques -->
+                <div class="form-section">
+                    <div class="card">
+                        <h2 class="section-title">Informations logistiques</h2>
+                        
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label>Transport</label>
+                                <input type="text" class="form-input" id="TRANSPORT" placeholder="">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Stockage client</label>
+                                <input type="text" class="form-input" id="STOCKAGE_CLIENT" placeholder="">
+                            </div>
+                        </div>
+
+                        <div class="form-grid-3">
+                            <div class="form-group">
+                                <label>Date d'ajout au plannning</label>
+                                <input type="text" class="form-input" id="DATE_PLANNING" readonly>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Date de livraison prévue</label>
+                                <input type="text" class="form-input" id="LIVRAISON_PREVUE" readonly>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Date de livraison</label>
+                                <input type="datetime-local" class="form-input" id="DATE_LIVRAISON" placeholder="">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Informations BDC -->
+                <div class="form-section">
+                <div class="card">
+                    <h2 class="section-title">Borne de commande</h2>
+
+                    <div class="form-grid-1">
+                    <div class="form-group">
+                        <label>Borne de commande</label>
+                        <select class="form-input" id="BORNE_DE_COMMANDE">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="OUI">OUI</option>
+                        <option value="NON">NON</option>
+                        </select>
+                    </div>
+                    </div>
+
+                    <div class="form-grid-2" id="borne-options">
+                    <div class="form-group">
+                        <label>RAL Borne de commande</label>
+                        <input type="text" class="form-input" id="RAL_BDC" placeholder="">
+                    </div>
+                    <div class="form-group">
+                        <label>Moyen de paiement</label>
+                        <input type="text" class="form-input" id="MODE_PAIEMENT" placeholder="">
+                    </div>
+                    <div class="form-group">
+                        <label>Type de connexion</label>
+                        <input type="text" class="form-input" id="TYPE_DE_CONNEXION" placeholder="">
+                    </div>
+                    <div class="form-group">
+                        <label>Kit Code-Barres</label>
+                        <input type="text" class="form-input" id="KIT_CODE_BARRES" placeholder="">
+                    </div>
+                    </div>
+
+                    <!-- ===== Ligne : EPAPER / QTE_EPAPER / STATUT_EPAPER  |  CONTRAT_COMMERCANT ===== -->
+                    <div class="row-2cols">
+                    <!-- Colonne de gauche : 3 sous-colonnes -->
+                    <div class="col">
+                        <div class="subgrid-3">
+                        <div class="form-group">
+                            <label for="EPAPER">Kit Epaper</label>
+                            <!-- L’hydrateur convertira en <select> avec OUI/NON si la table 'donnees' fournit des valeurs -->
+                            <input id="EPAPER" class="form-input" type="text" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="QTE_EPAPER">Qté Epaper</label>
+                            <input id="QTE_EPAPER" class="form-input" type="number" min="0" step="1" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="STATUT_EPAPER">Statut Epaper</label>
+                            <!-- L’hydrateur le convertira en <select> si 'donnees' a NOM_COLONNE = STATUT_EPAPER -->
+                            <input id="STATUT_EPAPER" class="form-input" type="text" />
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Colonne de droite : 1 champ -->
+                    <!-- Colonne de droite : 3 sous-colonnes (champ + Ajouter + Consulter) -->
+                    <div class="col">
+                    <div class="form-group">
+                        <label for="CONTRAT_COMMERCANT">Contrat Commerçant</label>
+                        <div class="subgrid-3">
+                        <input id="CONTRAT_COMMERCANT" class="form-input" type="text"
+                                placeholder="Collez un lien web ou un chemin Windows…" />
+                        <button type="button" class="btn btn-secondary"
+                                id="btn-contrat-ajouter" title="Sélectionner un fichier local et le transformer">
+                            Ajouter
+                        </button>
+                        <button type="button" class="btn btn-outline"
+                                id="btn-contrat-consulter" title="Ouvrir le lien" style="display:none;">
+                            Consulter
+                        </button>
+                        </div>
+                    </div>
+                    </div>
+
+                    </div>
+
+                </div>
+                </div>
+
+                <!-- Informations MODULE(S) -->
+                <div class="form-section">
+                <div class="card">
+                    <h2 class="section-title">Informations Modules</h2>
+
+                    <div class="form-grid-4">
+                    <!-- Colonne 1 - Modules S -->
+                    <div class="form-column">
+                        <div class="form-group"><label>MODULE 10S</label><input type="text" class="form-input" id="MOD10S"></div>
+                        <div class="form-group"><label>MODULE 14S</label><input type="text" class="form-input" id="MOD14S"></div>
+                        <div class="form-group"><label>MODULE 14SDV</label><input type="text" class="form-input" id="MOD14SDV"></div>
+                        <div class="form-group"><label>MODULE 15S</label><input type="text" class="form-input" id="MOD15S"></div>
+                        <div class="form-group"><label>MODULE 21S</label><input type="text" class="form-input" id="MOD21S"></div>
+                        <div class="form-group"><label>MODULE 21SDV</label><input type="text" class="form-input" id="MOD21SDV"></div>
+                        <div class="form-group"><label>MODULE 21SPT</label><input type="text" class="form-input" id="MOD21SPT"></div>
+                        <div class="form-group"><label>MODULE 24S</label><input type="text" class="form-input" id="MOD24S"></div>
+                        <div class="form-group"><label>MODULE 28S</label><input type="text" class="form-input" id="MOD28S"></div>
+                    </div>
+
+                    <!-- Colonne 2 - Modules R -->
+                    <div class="form-column">
+                        <div class="form-group"><label>MODULE 10R</label><input type="text" class="form-input" id="MOD10R"></div>
+                        <div class="form-group"><label>MODULE 14R</label><input type="text" class="form-input" id="MOD14R"></div>
+                        <div class="form-group"><label>MODULE 14RDV</label><input type="text" class="form-input" id="MOD14RDV"></div>
+                        <div class="form-group"><label>MODULE 15R</label><input type="text" class="form-input" id="MOD15R"></div>
+                        <div class="form-group"><label>MODULE 21R</label><input type="text" class="form-input" id="MOD21R"></div>
+                        <div class="form-group"><label>MODULE 21RDV</label><input type="text" class="form-input" id="MOD21RDV"></div>
+                        <div class="form-group"><label>MODULE 21RPT</label><input type="text" class="form-input" id="MOD21RPT"></div>
+                        <div class="form-group"><label>MODULE 24R</label><input type="text" class="form-input" id="MOD24R"></div>
+                        <div class="form-group"><label>MODULE 28R</label><input type="text" class="form-input" id="MOD28R"></div>
+                    </div>
+
+                    <!-- Colonne 3 - Modules C -->
+                    <div class="form-column">
+                        <div class="form-group"><label>MODULE 21C</label><input type="text" class="form-input" id="MOD21C"></div>
+                        <div class="form-group"><label>MODULE 21CDV</label><input type="text" class="form-input" id="MOD21CDV"></div>
+                    </div>
+
+                    <!-- Colonne 4 - Autres -->
+                    <div class="form-column">
+                        <div class="form-group"><label>BC13</label><input type="text" class="form-input" id="BC13"></div>
+                        <div class="form-group"><label>C16</label><input type="text" class="form-input" id="C16"></div>
+                        <div class="form-group"><label>C17</label><input type="text" class="form-input" id="C17"></div>
+                    </div>
+                    </div>
+
+                    <div class="form-grid-2">
+                            <div class="form-group">
+                                <label>RAL Module(s)</label>
+                                <input type="text" class="form-input" id="RAL_MODULE" placeholder="">
+                            </div>
+                            <div class="form-group">
+                                <label>Qté Tole de finition</label>
+                                <input type="text" class="form-input" id="TOLE_FINITION" placeholder="">
+                            </div>
+                            <div class="form-group">
+                                <label>Type de bandeau</label>
+                                <input type="text" class="form-input" id="TYPE_BANDEAU" placeholder="">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Bandeau Soufflant</label>
+                                <input type="text" class="form-input" id="BANDEAU_SOUFFLANT" placeholder="">
+                            </div>
+                    </div>
+                </div>
+                </div>
+
+                <!-- MARKETING -->
+                <div class="form-section">
+                <div class="card">
+                    <h2 class="section-title">Marketing</h2>
+
+                    <!-- Champ principal -->
+                    <div class="form-grid-1">
+                    <div class="form-group">
+                        <label>Marketing</label>
+                        <select class="form-input" id="MARKETING">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="OUI">OUI</option>
+                        <option value="NON">NON</option>
+                        </select>
+                    </div>
+                    </div>
+
+                    <!-- Bloc conditionnel -->
+                    <div id="marketing-block">
+                    <div class="form-grid-3">
+                        <!-- Colonne 1 -->
+                        <div>
+                        <div class="form-group"><label>MARKETING_BANDEAUX</label><input type="text" class="form-input" id="MARKETING_BANDEAUX"></div>
+                        <div class="form-group"><label>MARKETING_CHARTE_GRAPHIQUE</label><input type="text" class="form-input" id="MARKETING_CHARTE_GRAPHIQUE"></div>
+                        <div class="form-group"><label>MARKETING_BATIMENT_MODULAIRE</label><input type="text" class="form-input" id="MARKETING_BATIMENT_MODULAIRE"></div>
+                        <div class="form-group"><label>MARKETING_SUPPLEMENTS</label><input type="text" class="form-input" id="MARKETING_SUPPLEMENTS"></div>
+                        <div class="form-group"><label>MARKETING_IMPRESSION</label><input type="text" class="form-input" id="MARKETING_IMPRESSION"></div>
+                        <div class="form-group"><label>MARKETING_CREATION</label><input type="text" class="form-input" id="MARKETING_CREATION"></div>
+                        <div class="form-group"><label>MARKETING_IMPRESSION_CREATION</label><input type="text" class="form-input" id="MARKETING_IMPRESSION_CREATION"></div>
+                        </div>
+
+                        <!-- Colonne 2 -->
+                        <div>
+                        <div class="form-group"><label>MARKETING_APPEL_1</label><input type="text" class="form-input" id="MARKETING_APPEL_1"></div>
+                        <div class="form-group"><label>MARKETING_APPEL_2</label><input type="text" class="form-input" id="MARKETING_APPEL_2"></div>
+                        <div class="form-group"><label>MARKETING_APPEL_3</label><input type="text" class="form-input" id="MARKETING_APPEL_3"></div>
+                        <div class="form-group"><label>MARKETING_APPEL_4</label><input type="text" class="form-input" id="MARKETING_APPEL_4"></div>
+                        <div class="form-group"><label>MARKETING_APPEL_5</label><input type="text" class="form-input" id="MARKETING_APPEL_5"></div>
+                        </div>
+
+                        <!-- Colonne 3 -->
+                        <div>
+                        <div class="form-group"><label>MARKETING_DATE_APPEL_1</label><input type="datetime-local" class="form-input" id="MARKETING_DATE_APPEL_1"></div>
+                        <div class="form-group"><label>MARKETING_DATE_APPEL_2</label><input type="datetime-local" class="form-input" id="MARKETING_DATE_APPEL_2"></div>
+                        <div class="form-group"><label>MARKETING_DATE_APPEL_3</label><input type="datetime-local" class="form-input" id="MARKETING_DATE_APPEL_3"></div>
+                        <div class="form-group"><label>MARKETING_DATE_APPEL_4</label><input type="datetime-local" class="form-input" id="MARKETING_DATE_APPEL_4"></div>
+                        <div class="form-group"><label>MARKETING_DATE_APPEL_5</label><input type="datetime-local" class="form-input" id="MARKETING_DATE_APPEL_5"></div>
+                        </div>
+                    </div>
+
+                    <h2 class="section-title">Notes et Remarques Marketing</h2>
+                    <div class="form-group">
+                        <textarea class="form-input" id="MARKETING_REMARQUE" rows="5" placeholder="Ajouter des notes ou remarques supplémentaires..."></textarea>
+                    </div>
+                    </div>
+                </div>
+                </div>
+
+                <!-- Informations Bâtiment Modulaire -->
+                <div class="form-section">
+                <div class="card">
+                    <h2 class="section-title">Informations Bâtiment Modulaire</h2>
+
+                    <div class="form-grid-1">
+                    <div class="form-group">
+                        <label>Bâtiment Modulaire</label>
+                        <select class="form-input" id="BATIMENT_MODULAIRE">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="OUI">OUI</option>
+                        <option value="NON">NON</option>
+                        </select>
+                    </div>
+                    </div>
+
+                    <!-- Bloc masqué/affiché -->
+                    <div class="form-grid-2" id="batiment-options">
+                    <div class="form-group">
+                        <label>BATIMENT_MODULAIRE_TAILLE</label>
+                        <input type="text" class="form-input" id="BATIMENT_MODULAIRE_TAILLE" placeholder="">
+                    </div>
+
+                    <div class="form-group">
+                        <label>BATIMENT_MODULAIRE_PORTE</label>
+                        <input type="text" class="form-input" id="BATIMENT_MODULAIRE_PORTE" placeholder="">
+                    </div>
+
+                    <div class="form-group">
+                        <label>BATIMENT_MODULAIRE_RAL</label>
+                        <input type="text" class="form-input" id="BATIMENT_MODULAIRE_RAL" placeholder="">
+                    </div>
+
+                    <div class="form-group">
+                        <label>BATIMENT_MODULAIRE_N_CMD</label>
+                        <input type="text" class="form-input" id="BATIMENT_MODULAIRE_N_CMD" placeholder="">
+                    </div>
+                    </div>
+                </div>
+                </div>
+
+                <!-- Informations PLAN -->
+                <div class="form-section">
+                <div class="card">
+                    <h2 class="section-title">Plan d'implantation</h2>
+
+                    <div class="form-grid-1">
+                        <div class="form-group">
+                            <label>PLAN_INSTALLATION</label>
+                            <input type="text" class="form-input" id="PLAN_INSTALLATION" placeholder="">
+                        </div>
+                    </div>
+
+                    <!-- Bloc masqué/affiché -->
+                    <div class="form-grid-2">
+                    <!-- Colonne gauche : validation client -->
+                    <div class="form-group">
+                        <label>PLAN_INSTALLATION_VALIDER_CLIENT</label>
+                        <input type="text" class="form-input" id="PLAN_INSTALLATION_VALIDER_CLIENT" placeholder="">
+                    </div>
+
+                    <!-- Colonne droite : 3 sous-colonnes (Lien + 2 boutons) -->
+                    <div class="form-group">
+                        <label>PLAN_INSTALLATION_LIEN</label>
+                        <div class="subgrid-3">
+                        <input type="text" class="form-input" id="PLAN_INSTALLATION_LIEN" placeholder="Collez un lien web ou un chemin Windows…">
+                        <button type="button" class="btn btn-secondary" id="btn-plan-lien-ajouter" title="Coller un chemin Windows et le transformer">
+                            Ajouter
+                        </button>
+                        <button type="button" class="btn btn-outline" id="btn-plan-lien-consulter" title="Ouvrir le lien" style="display:none;">
+                            Consulter
+                        </button>
+                        </div>
+                    </div>
+                    </div>
+
+
+                </div>
+                </div>
+
+                <!-- Notes supplémentaires -->
+                <div class="form-section full-width">
+                    <div class="card">
+                        <h2 class="section-title">Notes et Remarques</h2>
+                        
+                        <div class="form-group">
+                            <textarea class="form-input" id="REMARQUES" rows="5" placeholder="Ajouter des notes ou remarques supplémentaires..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ===============================
+        Assistant de création de commande
+        =============================== -->
+<div id="orderWizard" class="modal">
+  <div class="wizard-box">
+    <div class="modal-header">
+      Assistant de création de commande
+      <span id="wizardClose" style="float:right; cursor:pointer; font-weight:bold;">✖</span>
+    </div>
+    <div class="modal-body">
+        <h2>Sélectionner un type de création</h2>
+
+        <div class="option" id="optWeb">
+        <div class="option-icon">🧾</div>
+        <div class="option-content">
+            <h3>Créer une commande</h3>
+            <p>Ouvrir un formulaire vierge pour saisir manuellement la commande.</p>
+        </div>
+        </div>
+
+        <div class="option" id="optJson">
+        <div class="option-icon">💾</div>
+        <div class="option-content">
+            <h3>Créer une commande depuis un fichier JSON</h3>
+            <p>Importer une commande à partir d’un fichier JSON local.</p>
+        </div>
+        </div>
+
+        <div id="wizardContinue" style="display:none; text-align:right; margin-top:10px;">
+        <input type="file" id="wizardFile" accept=".json,application/json" style="display:none;">
+        <button id="btnContinue" style="
+            background-color:#0078d4;
+            color:white;
+            border:none;
+            padding:10px 18px;
+            border-radius:6px;
+            cursor:pointer;
+        ">
+            Continuer
+        </button>
+        </div>
+    </div>
+</div>
+
+<!-- Configure l’URL du backend pour nos scripts -->
+<script>
+  // 2 options équivalentes, garde UNE seule :
+window.API = "https://api-tonnas.synology.me:8443";
+  // ou bien :
+  // window.API = "http://127.0.0.1:5000"; ou  window.API = "https://api-tonnas.synology.me:8443";
+</script>
+
+<!-- Important : index.js avant script.js, et avec defer -->
+ <script src="../js/script.js" defer></script>
+<script src="../js/index.js" defer></script>
+
+
+ 
+</body>
+</html>

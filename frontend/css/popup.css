@@ -1,0 +1,94 @@
+/* ===========================
+   Assistant de création (wizard)
+   =========================== */
+#orderWizard {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0); /* fond semi-transparent */
+  display: none;
+  z-index: 2000;
+}
+
+/* active = visible */
+#orderWizard.active { display: flex; align-items: center; justify-content: center; }
+
+/* boîte interne (le modal lui-même) */
+#orderWizard .wizard-box {
+  background-color: white;
+  width: 600px;
+  height: 440px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  overflow: hidden;
+  position: relative;
+}
+
+#orderWizard .modal-header {
+  background-color: #262262;
+  color: white;
+  padding: 16px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+#orderWizard .modal-body {
+  padding: 24px;
+}
+
+#orderWizard .modal-body h2 {
+  color: #333;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+#orderWizard .option {
+  border: 2px solid #dcdfe3;
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+  background-color: #fff;
+}
+
+#orderWizard .option:hover {
+  border-color: #29235c;
+  box-shadow: 0 0 6px rgba(0,120,212,0.2);
+}
+
+#orderWizard .option.selected {
+  background-color: #eaf4ff;
+  border-color: #29235c;
+}
+
+#orderWizard .option-icon {
+  background-color: #eaf4ff;
+  color: #0078d4;
+  border-radius: 6px;
+  padding: 10px;
+  margin-right: 16px;
+  font-size: 28px;
+}
+
+#orderWizard .option-content {
+  display: flex;
+  flex-direction: column;
+}
+
+#orderWizard .option-content h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #29235c;
+  font-weight: 600;
+}
+
+#orderWizard .option-content p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #555;
+}
