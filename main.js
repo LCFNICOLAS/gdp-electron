@@ -10,202 +10,230 @@ let mainWin = null;
 let backendProc = null;
 
 /* =======================
-   CONFIG "en dur"
+   CONFIGURATION
    ======================= */
-// Choisis ici :
-const USE_LOCAL_BACKEND = false;  // true = lance ../backend/main.py ; false = utilise l’API NAS
-
-// URL backend distant (prod)
+const USE_LOCAL_BACKEND = false;   // true = backend Python local ; false = API distante NAS
 const REMOTE_BASE = "https://api-tonnas.synology.me:8443";
 
-// Backend local
 const LOCAL_HOST = "127.0.0.1";
 const LOCAL_PORT = 5000;
 const LOCAL_BASE = `http://${LOCAL_HOST}:${LOCAL_PORT}`;
 
-// Si tu connais un chemin Python précis, mets-le ici (sinon laisse vide) :
-const HARDCODED_PYTHON = "F:\\GDP V3.00\\.venv\\Scripts\\python.exe";
-
+const HARDCODED_PYTHON = path.join(__dirname, ".venvHouse", "Scripts", "python.exe");
 
 /* =======================
-   Helpers
+   HELPERS
    ======================= */
 function waitForApi(url, timeoutMs = 10000) {
-  const start = Date.now();
-  const u = new URL(url);
-  const isHttps = u.protocol === "https:";
-  const client = isHttps ? https : http;
+    const start = Date.now();
+    const u = new URL(url);
+    const isHttps = u.protocol === "https:";
+    const client = isHttps ? https : http;
 
-  const options = {
-    hostname: u.hostname,
-    port: u.port || (isHttps ? 443 : 80),
-    path: u.pathname + u.search,
-    servername: u.hostname,
-    timeout: 2500,
-  };
-
-  return new Promise((resolve, reject) => {
-    const ping = () => {
-      const req = client.request(options, (res) => {
-        if (res.statusCode === 200) return resolve(true);
-        res.resume();
-        if (Date.now() - start > timeoutMs) return reject(new Error("timeout"));
-        setTimeout(ping, 400);
-      });
-      req.on("timeout", () => { req.destroy(); setTimeout(ping, 400); });
-      req.on("error", () => {
-        if (Date.now() - start > timeoutMs) return reject(new Error("timeout"));
-        setTimeout(ping, 400);
-      });
-      req.end();
+    const options = {
+        hostname: u.hostname,
+        port: u.port || (isHttps ? 443 : 80),
+        path: u.pathname + u.search,
+        servername: u.hostname,
+        timeout: 2500,
     };
-    ping();
-  });
+
+    return new Promise((resolve, reject) => {
+        const ping = () => {
+            const req = client.request(options, (res) => {
+                if (res.statusCode === 200) return resolve(true);
+                res.resume();
+                if (Date.now() - start > timeoutMs) return reject(new Error("timeout"));
+                setTimeout(ping, 400);
+            });
+            req.on("timeout", () => { req.destroy(); setTimeout(ping, 400); });
+            req.on("error", () => {
+                if (Date.now() - start > timeoutMs) return reject(new Error("timeout"));
+                setTimeout(ping, 400);
+            });
+            req.end();
+        };
+        ping();
+    });
 }
 
 function log(...a) { console.log("[main]", ...a); }
 
 /* =======================
-   Spawn backend local (Flask)
+   PYTHON BACKEND LAUNCH
    ======================= */
 function pythonCandidates() {
-  const envOverride = process.env.BACKEND_PYTHON || "";
-  const list = [];
+    const envOverride = process.env.BACKEND_PYTHON || "";
+    const list = [];
 
-  if (HARDCODED_PYTHON) list.push({ cmd: HARDCODED_PYTHON, args: [] });
-  if (envOverride) list.push({ cmd: envOverride, args: [] });
+    if (HARDCODED_PYTHON) list.push({ cmd: HARDCODED_PYTHON, args: [] });
+    if (envOverride) list.push({ cmd: envOverride, args: [] });
 
-  // Windows Python Launcher d’abord (si dispo)
-  list.push({ cmd: "py", args: ["-3.12"] });
-  list.push({ cmd: "py", args: ["-3.11"] });
-  list.push({ cmd: "py", args: ["-3"] });
+    list.push({ cmd: "py", args: ["-3.12"] });
+    list.push({ cmd: "py", args: ["-3.11"] });
+    list.push({ cmd: "py", args: ["-3"] });
 
-  // Fallbacks génériques
-  list.push({ cmd: "python", args: [] });
-  list.push({ cmd: "python3", args: [] });
+    list.push({ cmd: "python", args: [] });
+    list.push({ cmd: "python3", args: [] });
 
-  return list;
+    return list;
 }
 
 function startLocalBackend() {
-  const backendPath = path.join(__dirname, "backend", "main.py");
-  const cwd = path.dirname(backendPath);
+    const backendPath = path.join(__dirname, "backend", "main.py");
+    const cwd = path.dirname(backendPath);
 
-  if (!fs.existsSync(backendPath)) {
-    dialog.showErrorBox("Backend introuvable", `Fichier manquant:\n${backendPath}`);
-    return null;
-  }
-
-  const tried = [];
-  for (const cand of pythonCandidates()) {
-    try {
-      log(`[backend] trying: ${cand.cmd} ${cand.args.join(" ")} ${backendPath}`);
-      const p = spawn(cand.cmd, [...cand.args, backendPath], {
-        cwd,
-        env: { ...process.env, PYTHONUTF8: "1" },
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
-
-      let firstLines = "";
-      p.stdout.on("data", (d) => {
-        const s = d.toString();
-        firstLines += s;
-        process.stdout.write(`[backend] ${s}`);
-      });
-      p.stderr.on("data", (d) => {
-        const s = d.toString();
-        firstLines += s;
-        process.stderr.write(`[backend:err] ${s}`);
-      });
-
-      p.on("exit", (code, sig) => {
-        log(`[backend] exited code=${code} sig=${sig || ""}`);
-        if (mainWin && !mainWin.isDestroyed()) {
-          try {
-            mainWin.webContents.send("backend-exited", { code, sig, firstLines });
-          } catch {}
-        }
-      });
-
-      // S’il démarre, on retourne tout de suite le process
-      backendProc = p;
-      return p;
-    } catch (e) {
-      tried.push(`${cand.cmd} ${cand.args.join(" ")}`);
-      continue;
+    if (!fs.existsSync(backendPath)) {
+        dialog.showErrorBox("Backend introuvable", `Fichier manquant:\n${backendPath}`);
+        return null;
     }
-  }
 
-  dialog.showErrorBox(
-    "Impossible de lancer le backend local",
-    [
-      "Aucun interpréteur Python valide n’a été trouvé.",
-      "",
-      "Essais :",
-      ...pythonCandidates().map(c => `- ${c.cmd} ${c.args.join(" ")}`),
-      "",
-      "Solutions :",
-      "1) Installe Python 3.12 (recommandé) depuis python.org, coche « Add to PATH ». ",
-      "2) Ou installe le « Python Launcher for Windows » et assure-toi que 'py -3.12' fonctionne.",
-      "3) Ou définis la variable d’environnement BACKEND_PYTHON avec le chemin de python.exe.",
-      "4) Ou mets le chemin dans HARDCODED_PYTHON au début de main.js.",
-    ].join("\n")
-  );
+    for (const cand of pythonCandidates()) {
+        try {
+            log(`[backend] trying: ${cand.cmd} ${cand.args.join(" ")} ${backendPath}`);
+            const p = spawn(cand.cmd, [...cand.args, backendPath], {
+                cwd,
+                env: { ...process.env, PYTHONUTF8: "1" },
+                stdio: ["ignore", "pipe", "pipe"],
+                windowsHide: true,
+            });
 
-  return null;
+            p.stdout.on("data", (d) => process.stdout.write(`[backend] ${d}`));
+            p.stderr.on("data", (d) => process.stderr.write(`[backend:err] ${d}`));
+
+            p.on("exit", (code, sig) => {
+                log(`[backend] exited code=${code} sig=${sig || ""}`);
+            });
+
+            backendProc = p;
+            return p;
+
+        } catch {}
+    }
+    return null;
 }
 
 /* =======================
-   Electron
+   ELECTRON
    ======================= */
+const iconPath = process.platform === "darwin"
+    ? path.join(__dirname, "frontend", "assets", "logo.icns")
+    : path.join(__dirname, "frontend", "assets", "logo.ico");
+
 function createWindow(baseUrl) {
-  process.env.BACKEND_BASE = baseUrl; // lu en preload & renderer
+    process.env.BACKEND_BASE = baseUrl;
 
-  mainWin = new BrowserWindow({
-    width: 1600,
-    height: 1000,
-    autoHideMenuBar: true,
-    icon: path.join(__dirname, "frontend", "assets", "logo.ico"),
-    title: "GDP",
-    webPreferences: {
-      contextIsolation: true,
-      preload: path.join(__dirname, "preload.js"),
-    },
-  });
+    mainWin = new BrowserWindow({
+        width: 1920,
+        height: 1080,
+        autoHideMenuBar: true,
+        icon: iconPath,
+        title: "GDP",
+        webPreferences: {
+            contextIsolation: true,
+            preload: path.join(__dirname, "preload.js"),
+        },
+    });
 
-  mainWin.loadFile(path.join(__dirname, "frontend", "html", "index.html"));
-  mainWin.maximize();
+    // Bloquer DevTools en remote only
+    if (!USE_LOCAL_BACKEND) {
+        mainWin.webContents.on("before-input-event", (event, input) => {
+            const isDevToolsShortcut =
+                ((input.control || input.meta) && input.shift && input.code === "KeyI") ||
+                input.key === "F12";
+            if (isDevToolsShortcut) event.preventDefault();
+        });
+        mainWin.webContents.on("devtools-opened", () => mainWin.webContents.closeDevTools());
+    }
+
+    // On charge d’abord loading.html, la watcher choisira la bonne page
+    mainWin.loadFile(path.join(__dirname, "frontend", "html", "loading.html"));
+    mainWin.maximize();
 }
+
+/* =======================
+   MAINTENANCE WATCHER
+   ======================= */
+function startMaintenanceWatcher(baseUrl) {
+    if (!mainWin) return;
+
+    const maintenanceFile = path.join(__dirname, "frontend", "html", "maintenance.html");
+    const normalFile      = path.join(__dirname, "frontend", "html", "index.html");
+
+    let firstCheckDone = false;
+    let lastLoaded = null;
+
+    async function checkStatus() {
+        if (!mainWin || mainWin.isDestroyed()) return;
+
+        try {
+            // Vérifie /health
+            const health = await fetch(baseUrl + "/health");
+            if (!health.ok) throw new Error("Backend down");
+
+            // Vérifie GDP_MAINTENANCE
+            const r = await fetch(baseUrl + "/gdp/maintenance");
+            const data = await r.json();
+            if (!data.ok) throw new Error("Maintenance query failed");
+
+            const target = data.STATUT === 1 ? maintenanceFile : normalFile;
+
+            // Pas recharger si déjà sur la bonne page
+            if (lastLoaded === target) return;
+
+            lastLoaded = target;
+            mainWin.loadFile(target);
+
+            firstCheckDone = true;
+
+        } catch (e) {
+            if (!mainWin || mainWin.isDestroyed()) return;
+
+            if (lastLoaded !== maintenanceFile) {
+                lastLoaded = maintenanceFile;
+                mainWin.loadFile(maintenanceFile);
+            }
+
+            firstCheckDone = true;
+        }
+    }
+
+    // Première vérification immédiate
+    checkStatus();
+
+    // Vérification toutes les 15 sec
+    setInterval(checkStatus, 15000);
+}
+
+/* =======================
+   MAIN APP START
+   ======================= */
+app.whenReady().then(async () => {
+    const baseUrl = USE_LOCAL_BACKEND ? LOCAL_BASE : REMOTE_BASE;
+
+    if (USE_LOCAL_BACKEND) {
+        startLocalBackend();
+        try {
+            await waitForApi(`${LOCAL_BASE}/health`, 12000);
+        } catch {}
+    } else {
+        try {
+            await waitForApi(`${REMOTE_BASE}/health`, 8000);
+        } catch {}
+    }
+
+    createWindow(baseUrl);
+    startMaintenanceWatcher(baseUrl);
+});
+
+/* =======================
+   CLEAN EXIT
+   ======================= */
+app.on("before-quit", () => {
+    if (backendProc && !backendProc.killed) {
+        try { backendProc.kill(); } catch {}
+    }
+});
 
 ipcMain.handle("open-external", (_evt, url) => shell.openExternal(url));
 
-app.whenReady().then(async () => {
-  if (USE_LOCAL_BACKEND) {
-    // 1) Démarre Flask local
-    const proc = startLocalBackend();
-    // 2) Même si le spawn échoue, on tente quand même d’attendre l’API ; sinon on bascule à la fenêtre (le front affichera les erreurs)
-    try {
-      await waitForApi(`${LOCAL_BASE}/health`, 12000);
-      log("Local backend is up.");
-    } catch {
-      log("Local backend not reachable yet (continuing anyway).");
-    }
-    createWindow(LOCAL_BASE);
-  } else {
-    // Distant
-    try {
-      await waitForApi(`${REMOTE_BASE}/health`, 8000);
-    } catch {
-      // pas bloquant en prod ; la fenêtre s’ouvrira quand même
-    }
-    createWindow(REMOTE_BASE);
-  }
-});
-
-app.on("window-all-closed", () => {
-  if (backendProc && !backendProc.killed) {
-    try { backendProc.kill(); } catch {}
-  }
-  app.quit();
-});

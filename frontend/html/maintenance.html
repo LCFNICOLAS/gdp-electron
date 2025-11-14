@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maintenance</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f1f4f8;
+    }
+
+    .container {
+      text-align: center;
+      padding: 60px 40px;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+      max-width: 700px;
+      animation: fadeIn 0.7s ease-in-out;
+      border-top: 6px solid #64BA87;
+    }
+
+    h1 {
+      font-size: 2.3rem;
+      margin-bottom: 10px;
+      color: #29235C;
+      font-weight: 700;
+    }
+
+    p {
+      font-size: 1.1rem;
+      color: #555;
+      margin-top: 10px;
+      margin-bottom: 30px;
+    }
+
+    .illustration {
+      width: 280px;
+      margin: 0 auto 25px auto;
+      opacity: 0;
+      animation: fadeIn 1s ease forwards;
+    }
+
+    .btn-home {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 22px;
+      background: #64BA87;
+      color: white;
+      border-radius: 25px;
+      text-decoration: none;
+      transition: 0.25s;
+      font-size: 0.95rem;
+    }
+
+    .btn-home:hover {
+      background: #4d9b6d;
+    }
+
+    .loader {
+      border: 5px solid #e0e0e0;
+      border-top: 5px solid #29235C;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      margin: 0 auto;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚧 Maintenance en cours</h1>
+    <p>Notre application est momentanément indisponible. Nous travaillons activement pour rétablir le service.</p>
+    <div class="loader"></div>
+  </div>
+
+  <script>
+    // Exemple: redirection automatique une fois la maintenance terminée
+    // setTimeout(() => { window.location.reload(); }, 15000);
+  </script>
+</body>
+</html>

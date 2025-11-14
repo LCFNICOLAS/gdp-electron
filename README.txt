@@ -54,3 +54,8 @@ disown
 # Check
 ps -fp "$(cat ../backend.pid)"
 tail -n 50 ../backend.log
+
+-------------------------------------------------------------------------------------
+cd "E:\GDP V3.00"
+.\.venvHouse\Scripts\activate
+pip install -r requirements.txt

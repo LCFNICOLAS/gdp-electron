@@ -6,6 +6,58 @@
  // expose aussi sur window pour les autres modules
 if (typeof window !== "undefined") window.API = API;
 
+// 🔐 TOKEN SÉCURITÉ
+let APP_TOKEN = "";
+window.APP_TOKEN = APP_TOKEN;  // rendu global
+
+async function loadAppToken() {
+    try {
+        const res = await fetch("http://127.0.0.1:5000/token");
+        const data = await res.json();
+        APP_TOKEN = data.token;
+        window.APP_TOKEN = APP_TOKEN;
+        console.log("TOKEN FRONT =", APP_TOKEN);
+    } catch (err) {
+        console.error("Erreur récupération token :", err);
+    }
+}
+
+// 🔁 on lance le chargement du token sans `await`
+loadAppToken();
+
+// optionnel : exposer la fonction si tu veux la rappeler ailleurs
+if (typeof window !== "undefined") {
+  window.loadAppToken = loadAppToken;
+}
+
+// 🔐 GET sécurisé
+async function apiGet(url) {
+  const res = await fetch(API + url, {
+    method: "GET",
+    headers: {
+      "X-App-Token": window.APP_TOKEN || "",
+      "Accept": "application/json"
+    },
+    cache: "no-store"
+  });
+  const json = await res.json().catch(() => ({}));
+  return json;
+}
+
+async function apiPost(url, body) {
+    return fetch(API + url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-App-Token": window.APP_TOKEN
+        },
+        body: JSON.stringify(body)
+    });
+}
+
+window.apiGet = apiGet;
+window.apiPost = apiPost;
+
 // === Helpers ===
 
 const IDS_DONNEES = [
@@ -19,18 +71,6 @@ const IDS_DONNEES = [
   // Ajoute ici les autres champs à options (exemples) :
   "TYPE_CONTRAT", "TYPE_CONNEXION", "MODE_PAIEMENT"
 ];
-
-// Hydrate tous les <select> à partir de /donnees
-async function hydrateAllDonneesSelects() {
-  // On enchaîne en parallèle pour aller vite
-  await Promise.all(IDS_DONNEES.map(id => populateSelectFromDonneesById(id)));
-
-  // Comme EPAPER peut devenir <select>, on réapplique l’UI
-  if (typeof applyEpaperUI === "function") applyEpaperUI();
-}
-
-// Rendre dispo pour index.js et les appels inline
-window.hydrateAllDonneesSelects = hydrateAllDonneesSelects;
 
 function formatEUR(val) {
   if (val === null || val === undefined) return "";
@@ -119,68 +159,97 @@ if (ordersTbody && !ordersTbody.dataset.bound) {
 }
 
 window.currentOrderN = null;
+window.currentOrdersFilter = window.currentOrdersFilter || "";
 
-function newOrder() {
-  // 1. Oublier toute commande précédente
-  window.currentOrderN = null;
+async function loadOrders({ status = '', marketing = '', q = '', limit = 500, offset = 0 } = {}) {
+    const params = new URLSearchParams();
+    if (status)    params.set('status', status);
+    if (marketing) params.set('marketing', marketing);
+    if (q)         params.set('q', q);
+    params.set('limit',  String(limit));
+    params.set('offset', String(offset));
 
-  // 2. Vider tous les champs de la modale
-  document
-    .querySelectorAll('#orderModal input, #orderModal textarea, #orderModal select')
-    .forEach(el => {
-      if (el.tagName === 'SELECT') {
-        el.selectedIndex = 0;
-      } else {
-        el.value = '';
-      }
-    });
+    const data = await apiGet(`/orders?` + params.toString());   // ← JSON DIRECT
 
-  // 3. (Optionnel) remplir DATE_PLANNING automatiquement
-  const dp = document.getElementById('DATE_PLANNING');
-  if (dp) {
-    const today = new Date();
-    dp.value = today.toISOString().split('T')[0];
-  }
-
-  // 4. Forcer STATUT = EN ATTENTE
-  const st = document.getElementById('STATUT');
-  if (st) {
-    if (st.tagName === 'SELECT') {
-      const idx = Array.from(st.options).findIndex(
-        opt => opt.textContent.trim().toUpperCase() === 'EN ATTENTE'
-      );
-      if (idx >= 0) st.selectedIndex = idx;
-    } else {
-      st.value = 'EN ATTENTE';
+    if (!data || !data.ok) {
+        throw new Error(data?.error || "Erreur API /orders");
     }
-  }
 
-  // 5. Ouvrir la modale
-  if (typeof openModal === 'function') openModal('orderModal');
-
-  // 6. Mettre à jour les blocs conditionnels
-  if (typeof updateConditionalBlocks === 'function') updateConditionalBlocks();
+    const rows = data.rows || [];
+    renderOrders(rows);
+    return rows;
 }
 
-// === Fetch côté client ===
-async function loadOrders({ status = '', marketing = '', q = '', limit = 500, offset = 0 } = {}) {
-  const params = new URLSearchParams();
-  if (status)    params.set('status', status);
-  if (marketing) params.set('marketing', marketing);
-  if (q)         params.set('q', q);
-  params.set('limit', String(limit));
-  params.set('offset', String(offset));
+function ensureSelect(id) {
+    const old = document.getElementById(id);
+    if (!old) {
+        console.warn("Champ introuvable :", id);
+        return null;
+    }
 
-  const res  = await fetch(`${API}/orders?` + params.toString(), { cache: 'no-store' });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
+    // Si c’est déjà un select → tout va bien
+    if (old.tagName === "SELECT") return old;
 
-  const rows = data.rows || [];
-  renderOrders(rows);
-  return rows;
+    // Sinon on convertit l’input → select
+    const sel = document.createElement("select");
+
+    // Copie des attributs
+    sel.id = old.id;
+    sel.name = old.name || old.id;
+    sel.className = old.className;
+    sel.required = old.required;
+
+    // Style inline conservé si besoin
+    if (old.style.cssText) {
+        sel.style.cssText = old.style.cssText;
+    }
+
+    // On remplace proprement l'ancien input
+    old.replaceWith(sel);
+
+    console.log(`Champ ${id} converti automatiquement en <select>`);
+
+    return sel;
+}
+
+async function populateSelectFromDonneesById(id) {
+  const sel = ensureSelect(id);  // convertit input -> select
+  if (!sel) return;
+
+  // attend le token
+  while (!window.APP_TOKEN) {
+    await new Promise(res => setTimeout(res, 30));
+  }
+
+  const data = await apiGet(`/donnees?nom_colonne=${encodeURIComponent(id)}`);
+
+  if (!data || !data.ok) {
+    console.warn("Erreur API pour", id, data);
+    return;
+  }
+
+  const oldValue = sel.value;        // 1. sauvegarder d'abord
+  sel.innerHTML = "";                // 2. vider
+  sel.insertAdjacentHTML("beforeend", `<option value=""></option>`);
+
+  data.values.forEach(v => {
+    sel.insertAdjacentHTML(
+      "beforeend",
+      `<option value="${v}">${v}</option>`
+    );
+  });
+
+  if (oldValue && Array.from(sel.options).some(o => o.value == oldValue)) {
+    sel.value = oldValue;
+  }
+
+  console.log("Hydratation OK pour", id, data.values.length, "valeurs");
 }
 
 function setActiveOrdersFilter(filterKey = "") {
+  // mémorise le filtre courant ('' = toutes)
+  window.currentOrdersFilter = filterKey || "";
+
   // Retire l'état actif de tous les boutons "Commandes"
   document.querySelectorAll('.nav-item[data-page="orders"]').forEach(b => b.classList.remove('active'));
 
@@ -191,25 +260,27 @@ function setActiveOrdersFilter(filterKey = "") {
   const btn = document.querySelector(selector);
   if (btn) btn.classList.add('active');
 
-  // S'assure que la page "Commandes" est bien affichée
+  // Affiche la page Commandes
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-orders')?.classList.add('active');
 
   if (window.lucide) lucide.createIcons();
 }
 
-// Filtres de la sidebar (data-filter)
-document.querySelectorAll('.nav-item[data-filter]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const f = btn.dataset.filter;
-    setActiveOrdersFilter(f);                              // met à jour la barre
-    if (f === 'orders_progress')  return loadOrders({ status: 'en_cours' });
-    if (f === 'orders_stock')     return loadOrders({ status: 'stock' });
-    if (f === 'orders_delivered') return loadOrders({ status: 'livree' });
-    if (f === 'orders_marketing') return loadOrders({ marketing: 'OUI' });
-  });
-});
+async function refreshOrdersList() {
+  const f = window.currentOrdersFilter || "";
 
+  if (f === 'orders_progress')  return loadOrders({ status: 'en_cours' });
+  if (f === 'orders_stock')     return loadOrders({ status: 'stock' });
+  if (f === 'orders_delivered') return loadOrders({ status: 'livree' });
+  if (f === 'orders_marketing') return loadOrders({ marketing: 'OUI' });
+
+  // par défaut: toutes les commandes
+  return loadOrders();
+}
+
+// on expose au cas où
+window.refreshOrdersList = refreshOrdersList;
 
 document.querySelectorAll('.nav-item').forEach(btn => {
   btn.addEventListener('click', async function () {
@@ -231,6 +302,16 @@ document.querySelectorAll('.nav-item').forEach(btn => {
   });
 });
 
+document.querySelectorAll('.nav-item[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.filter;
+    setActiveOrdersFilter(f);
+    if (f === 'orders_progress')  return loadOrders({ status: 'en_cours' });
+    if (f === 'orders_stock')     return loadOrders({ status: 'stock' });
+    if (f === 'orders_delivered') return loadOrders({ status: 'livree' });
+    if (f === 'orders_marketing') return loadOrders({ marketing: 'OUI' });
+  });
+});
 
 // === Recherche locale + (option) déclenchement serveur ===
 const ordersSearch = document.getElementById('orders-search');
@@ -278,10 +359,11 @@ async function loadClients({ q = '', limit = 500, offset = 0 } = {}) {
   params.set('limit', String(limit));
   params.set('offset', String(offset));
 
-  const res = await fetch(`${API}/clients?` + params.toString());
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
-  renderClients(data.rows || []);
+const data = await apiGet(`/clients?` + params.toString());
+if (!data || !data.ok) {
+    throw new Error(data?.error || "Erreur API /clients");
+}
+renderClients(data.rows || []);
 }
 
 // Charge au premier accès à l’onglet "Clients"
@@ -292,29 +374,17 @@ let clientsLoadedOnce = false;
 document.querySelectorAll('.nav-item').forEach(btn => {
   btn.addEventListener('click', async function () {
     const page = this.getAttribute('data-page');
-    try {
-      // Commandes : 1er chargement seulement (évite refresh lourd)
-      if (page === 'orders' && !ordersLoadedOnce) {
-        await loadOrders();
-        ordersLoadedOnce = true;
+    const isFilter = this.hasAttribute('data-filter');
+    if (page === 'orders' && !isFilter) {
+      try {
+        setActiveOrdersFilter("");     // filtre = toutes
+        await refreshOrdersList();     // recharge selon ce filtre
+      } catch (e) {
+        console.error(e);
       }
-
-      // Dashboard : TOUJOURS rafraîchir (tu viens de modifier des données)
-      // Dashboard : TOUJOURS rafraîchir (stats + graphique)
-      if (page === 'dashboard') {
-        if (typeof window.refreshDashboard === 'function') {
-          await window.refreshDashboard();     // /orders/stats + /orders/modules-evolution
-        } else {
-          await loadDashboardStats();          // fallback au minimum
-        }
-      }
-
-    } catch (e) {
-      console.error(e);
     }
   });
 });
-
 
 // Recherche côté serveur (optionnel) ou filtrage DOM (déjà présent)
 const clientsSearch = document.getElementById('clients-search');
@@ -370,8 +440,6 @@ function closeModal(modalId) {
     }
 }
 
-window.openOrderForEdit = openOrderForEdit;
-
 // Close modal on escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
@@ -386,15 +454,18 @@ async function loadOrdersEvolutionChart() {
     if (!ordersCtx) return;
 
     try {
-        const res = await fetch(`${API}/orders/modules-evolution`, { cache: "no-store" });
-        const data = await res.json();
-        if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        // 📌 apiGet retourne DIRECTEMENT un objet JSON
+        const data = await apiGet(`/orders/modules-evolution`);
 
-        const items   = data.items || [];
-        const labels  = items.map(it => it.label || it.month);
-        const values  = items.map(it => Number(it.modules || 0));
+        if (!data || !data.ok) {
+            throw new Error(data?.error || "Erreur API /orders/modules-evolution");
+        }
 
-        // Si un ancien graphique existe, on le détruit avant d'en recréer un
+        const items  = data.items || [];
+        const labels = items.map(it => it.label || it.month);
+        const values = items.map(it => Number(it.modules || 0));
+
+        // 📌 Reset graphique si déjà affiché
         if (window.ordersChartInstance) {
             window.ordersChartInstance.destroy();
         }
@@ -414,6 +485,7 @@ async function loadOrdersEvolutionChart() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: false,
                 plugins: { legend: { display: false } },
                 scales: {
                     y: { beginAtZero: true },
@@ -421,21 +493,18 @@ async function loadOrdersEvolutionChart() {
                 }
             }
         });
+
     } catch (e) {
         console.error('loadOrdersEvolutionChart failed:', e);
     }
 }
 
-// optionnel, mais propre : on l'expose explicitement
 window.loadOrdersEvolutionChart = loadOrdersEvolutionChart;
 
-// Au chargement initial de la page, on dessine une première fois
 window.addEventListener('load', () => {
     loadOrdersEvolutionChart();
-    // ... le code du pie chart reste comme avant
 });
 
-// Initialize Charts
 window.addEventListener('load', function() {
     // Orders Line Chart (modules vendus sur 6 derniers mois)
     loadOrdersEvolutionChart();
@@ -488,4 +557,9 @@ document.querySelectorAll('.search-bar input').forEach(input => {
     });
 });
 
-console.log('Le Casier Français ERP initialized');
+window.addEventListener("load", () => {
+    if (typeof openOrderForEdit === "function") {
+        window.openOrderForEdit = openOrderForEdit;
+    }
+});
+

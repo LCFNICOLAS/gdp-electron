@@ -23,6 +23,15 @@ from pathlib import Path
 from datetime import datetime as _dt, date, datetime, timedelta
 import traceback as _tb
 from typing import TYPE_CHECKING, Optional, Any
+import secrets
+
+
+# -----------------------------------------------------------
+# TOKEN
+# -----------------------------------------------------------
+
+APP_SECRET_TOKEN = secrets.token_hex(32)  # token aléatoire sécurisé (64 caractères hex)
+print("[SECURITY] Token généré :", APP_SECRET_TOKEN, flush=True)
 
 # -----------------------------------------------------------
 # UTF-8 robuste stdout/stderr
@@ -417,6 +426,19 @@ def health():
         "ts": int(time.time()),
     }), 200
 
+@app.get("/token")
+def get_token():
+    return jsonify({"token": APP_SECRET_TOKEN}), 200
+
+@app.before_request
+def check_auth_token():
+    if request.path in ("/health", "/token", "/gdp/maintenance"):
+        return  # pas besoin de token pour ces endpoints
+
+    token = request.headers.get("X-App-Token", "")
+    if token != APP_SECRET_TOKEN:
+        return jsonify({"ok": False, "error": "Invalid or missing token"}), 401
+
 # -----------------------------------------------------------
 # Compat SQLAlchemy: text()/engine
 # -----------------------------------------------------------
@@ -687,7 +709,7 @@ def _norm(s: str) -> str:
             """), {"n": nom.lower()}).scalar() or 0
 
             c2 = conn.execute(text("""
-                SELECT COUNT(*) FROM tableau_production
+                SELECT COUNT(*) FROM tableau_production_2
                 WHERE LOWER(TRIM(NOM_CLIENT)) = :n
             """), {"n": nom.lower()}).scalar() or 0
 
@@ -700,7 +722,7 @@ def _norm(s: str) -> str:
 
             if c2 == 0:
                 rows = conn.execute(text("""
-                    SELECT NOM_CLIENT FROM tableau_production
+                    SELECT NOM_CLIENT FROM tableau_production_2
                     WHERE NOM_CLIENT LIKE :like LIMIT 20
                 """), {"like": f"%{nom}%"}).fetchall()
                 c2 = sum(1 for (x,) in rows if _norm(x) == target)
@@ -815,7 +837,7 @@ def get_orders_stats():
                 ), 0
               ) AS ca_mois
 
-            FROM tableau_production
+            FROM tableau_production_2
         """)
 
         with engine.connect() as conn:
@@ -887,7 +909,7 @@ def get_orders_modules_evolution():
             SELECT
               DATE_FORMAT({date_expr}, '%Y-%m') AS ym,
               SUM({modules_expr}) AS modules
-            FROM tableau_production
+            FROM tableau_production_2
             WHERE {date_expr} IS NOT NULL
               AND {date_expr} >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 5 MONTH)
             GROUP BY ym
@@ -966,7 +988,7 @@ def get_orders():
                     MONTANT_HT,
                     REMARQUES,
                     MARKETING
-                FROM tableau_production
+                FROM tableau_production_2
             """
             where, params = [], {}
 
@@ -977,14 +999,24 @@ def get_orders():
             # ---- Filtres de statut ----
             s = status.lower()
             if s in {"en_cours", "en cours", "progress"}:
-                where.append("UPPER(STATUT) IN ('EN ATTENTE','EN ATTENTE - PRODUCTION','EN PRODUCTION')")
+                # mêmes statuts que pour les stats dashboard
+                where.append("""
+                    UPPER(TRIM(STATUT)) IN (
+                        'EN ATTENTE',
+                        'EN ATTENTE - PRODUCTION',
+                        'EN ATTENTE DE PRODUCTION',
+                        'EN PRODUCTION'
+                    )
+                """)
             elif s in {"stock", "en_stock", "en stock"}:
-                where.append("UPPER(STATUT) = 'EN STOCK'")
+                where.append("UPPER(TRIM(STATUT)) = 'EN STOCK'")
             elif s in {"livre", "livrée", "livree", "delivered"}:
-                where.append("UPPER(STATUT) = 'LIVREE'")
+                where.append("UPPER(TRIM(STATUT)) IN ('LIVREE','LIVRÉE','LIVRE')")
             elif status:
+                # fallback: filtre brut si tu passes un statut exact dans l’URL
                 where.append("STATUT = :status")
                 params["status"] = status
+
 
             # ---- Filtre Marketing ----
             if marketing:
@@ -1024,7 +1056,7 @@ def get_table_columns_cached(ttl=300):
     global TABLE_PRODUCTION_COLUMNS, TABLE_PRODUCTION_COLUMNS_TS
     now = time.time()
     if TABLE_PRODUCTION_COLUMNS is None or (now - TABLE_PRODUCTION_COLUMNS_TS) > ttl:
-        TABLE_PRODUCTION_COLUMNS = get_table_columns("tableau_production")
+        TABLE_PRODUCTION_COLUMNS = get_table_columns("tableau_production_2")
         TABLE_PRODUCTION_COLUMNS_TS = now
     return TABLE_PRODUCTION_COLUMNS
 
@@ -1034,7 +1066,7 @@ def get_order(n):
     try:
         with engine.connect() as conn:
             row = conn.execute(
-                text(f"SELECT * FROM tableau_production WHERE N = :n LIMIT 1"),
+                text(f"SELECT * FROM tableau_production_2 WHERE N = :n LIMIT 1"),
                 {"n": n},
             ).mappings().first()
         if not row:
@@ -1068,7 +1100,7 @@ def create_order():
     if not valid_data.get("N_CLIENT") or not valid_data.get("NOM_CLIENT"):
         return jsonify({"ok": False, "error": "N_CLIENT et NOM_CLIENT sont requis"}), 400
 
-    # ======= Vérification NOM_CLIENT dans clients + tableau_production =======
+    # ======= Vérification NOM_CLIENT dans clients + tableau_production_2 =======
     nom_client = (valid_data.get("NOM_CLIENT") or "").strip()
     try:
         def _norm(s: str) -> str:
@@ -1088,7 +1120,7 @@ def create_order():
             """), {"n": nom_client.lower()}).scalar() or 0
 
             c2 = conn.execute(text("""
-                SELECT COUNT(*) FROM tableau_production
+                SELECT COUNT(*) FROM tableau_production_2
                 WHERE LOWER(TRIM(NOM_CLIENT)) = :n
             """), {"n": nom_client.lower()}).scalar() or 0
 
@@ -1102,7 +1134,7 @@ def create_order():
 
             if c2 == 0:
                 rows = conn.execute(text("""
-                    SELECT NOM_CLIENT FROM tableau_production
+                    SELECT NOM_CLIENT FROM tableau_production_2
                     WHERE NOM_CLIENT LIKE :like LIMIT 20
                 """), {"like": f"%{nom_client}%"}).fetchall()
                 c2 = sum(1 for (x,) in rows if _norm(x) == target)
@@ -1158,7 +1190,7 @@ def create_order():
 
         with engine.begin() as conn:
             result = conn.execute(
-                text(f"INSERT INTO tableau_production ({columns}) VALUES ({values})"),
+                text(f"INSERT INTO tableau_production_2 ({columns}) VALUES ({values})"),
                 valid_data
             )
             new_id = getattr(result, "lastrowid", None)
@@ -1189,15 +1221,8 @@ def update_order(n):
         TABLE_PRODUCTION_COLUMNS = None
         cols = get_table_columns_cached()
 
+    # On garde les valeurs vides ("") : elles servent à effacer
     valid_data = {k: v for k, v in data.items() if k in cols and k != "N"}
-
-    # Ne pas écraser par "" (sauf trio EPAPER)
-    keep_empty = {"EPAPER", "QTE_EPAPER", "STATUT_EPAPER"}
-    for k in list(valid_data.keys()):
-        if isinstance(valid_data[k], str) and valid_data[k].strip() == "" and k not in keep_empty:
-            valid_data.pop(k)
-
-    print(f"[AUDIT] ▶ update_order N={n} | payload_keys={list(valid_data.keys())}", flush=True)
 
     if not valid_data:
         print("[AUDIT] ✖ Aucun champ valide transmis → pas de log", flush=True)
@@ -1209,7 +1234,7 @@ def update_order(n):
             cols_to_fetch = set(valid_data.keys()) | {"NOM_CLIENT"}
             select_cols = ", ".join(sorted(cols_to_fetch))
             before = conn.execute(
-                text(f"SELECT {select_cols} FROM tableau_production WHERE N = :N"),
+                text(f"SELECT {select_cols} FROM tableau_production_2 WHERE N = :N"),
                 {"N": n},
             ).mappings().first()
             if not before:
@@ -1240,13 +1265,17 @@ def update_order(n):
             set_clause = ", ".join([f"{k} = :{k}" for k in valid_data.keys()])
             payload = dict(valid_data)
             payload["N"] = n
-            res = conn.execute(text(f"UPDATE tableau_production SET {set_clause} WHERE N = :N"), payload)
+            res = conn.execute(
+                text(f"UPDATE tableau_production_2 SET {set_clause} WHERE N = :N"),
+                payload,
+            )
             if res.rowcount == 0:
-                print("[AUDIT] ✖ UPDATE n’a touché aucune ligne", flush=True)
-                return jsonify({"ok": False, "error": "Commande introuvable"}), 404
+                # La ligne existe (on a 'before'), mais aucune valeur n’a changé :
+                # on considère que c'est un succès idempotent.
+                print("[AUDIT] UPDATE : 0 ligne modifiée (valeurs identiques)", flush=True)
 
         # Diff
-        changes = {}
+        changes: dict[str, tuple[Any, Any]] = {}
         for k, new_val in valid_data.items():
             old_val = before.get(k)
             if (old_val or "") != (new_val or ""):
@@ -1337,9 +1366,74 @@ def get_donnees():
             """), {"nom": nom}).fetchall()
 
         values = [r[0] for r in rows]
-        # déduplication par sécurité
         values = list(dict.fromkeys(values))
         return jsonify({"ok": True, "values": values}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.get("/donnees/all")
+def get_donnees_all():
+    """
+    Retourne toutes les valeurs de la table `donnees`, groupées par NOM_COLONNE.
+
+    Réponse :
+    {
+      "ok": true,
+      "values": {
+        "STATUT": ["EN ATTENTE", "EN PRODUCTION", ...],
+        "MODE_PAIEMENT": ["INGENICO SELF", "VAD", ...],
+        ...
+      }
+    }
+    """
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT NOM_COLONNE, VALEUR
+                FROM donnees
+                WHERE COALESCE(VALEUR, '') <> ''
+                ORDER BY NOM_COLONNE, N
+            """)).fetchall()
+
+        data = {}
+        for nom, val in rows:
+            if not nom:
+                continue
+            key = str(nom).strip()
+            if not key:
+                continue
+            if key not in data:
+                data[key] = []
+            if val is not None:
+                s = str(val).strip()
+                if s:
+                    data[key].append(s)
+
+        # dédup
+        for k, lst in data.items():
+            data[k] = list(dict.fromkeys(lst))
+
+        return jsonify({"ok": True, "values": data}), 200
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.get("/donnees/cols")
+def get_donnees_cols():
+    """
+    Retourne la liste des NOM_COLONNE distincts de la table `donnees`.
+    Utilisé pour filtrer les champs à hydrater côté front.
+    """
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT DISTINCT NOM_COLONNE
+                FROM donnees
+                WHERE COALESCE(NOM_COLONNE, '') <> ''
+                ORDER BY NOM_COLONNE
+            """)).fetchall()
+
+        cols = [r[0] for r in rows]
+        return jsonify({"ok": True, "cols": cols}), 200
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -1651,6 +1745,20 @@ def send_new_order_email(order_id: int, row: dict):
         if pythoncom:
             try: pythoncom.CoUninitialize()
             except Exception: pass
+
+@app.get("/gdp/maintenance")
+def get_maintenance_status():
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT STATUT FROM GDP WHERE ID = 'GDP_MAINTENANCE' LIMIT 1")
+            ).fetchone()
+
+        statut = int(row[0]) if row and row[0] is not None else 0
+        return jsonify({"ok": True, "STATUT": statut}), 200
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e), "STATUT": 0}), 500
 
 # ========== 4) Lancement ==========
 if __name__ == "__main__":

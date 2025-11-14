@@ -578,7 +578,7 @@ body {
 
 /* Table */
 .table-container {
-    overflow-x: auto;
+    overflow: visible !important;
 }
 
 .data-table {
@@ -1423,4 +1423,213 @@ textarea.form-input {
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
+}
+
+.combo-list {
+  background: #fff;
+  border: 1px solid #e7e9ee;
+  border-radius: 10px;
+  margin-top: 2px;
+}
+
+.combo-list div {
+  padding: 10px 12px;
+}
+
+.combo-list div:hover {
+  background: #f0f2f7;
+}
+
+/* --- Filtres de colonnes façon Excel --- */
+
+.data-table th.th-filter {
+  position: relative;
+  padding-right: 26px; /* laisse de la place pour la flèche */
+}
+
+.filter-trigger {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.filter-trigger i,
+.filter-trigger svg {
+  width: 12px;
+  height: 12px;
+}
+
+.filter-trigger:hover {
+  background: var(--muted);
+}
+
+/* état filtré (colonne avec filtre actif) */
+.filter-trigger.is-filtered {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.cf-header {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.cf-search {
+  margin-bottom: 6px;
+}
+
+.cf-search input {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.cf-list {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 6px 0;
+  padding: 4px 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.cf-list label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0 2px 2px;
+  cursor: pointer;
+}
+
+.cf-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* ===== Filtres façon Excel ===== */
+
+.th-filter {
+  position: relative;
+  white-space: nowrap;
+}
+
+.th-filter .filter-trigger {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin-left: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.th-filter .filter-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.th-filter .filter-trigger.is-filtered {
+  background: rgba(37, 99, 235, 0.12);
+  border-radius: 4px;
+}
+
+/* au cas où, pour être sûr */
+.hidden {
+  display: none !important;
+}
+
+/* ==== Filtre NOM CLIENT (style Excel) ==== */
+
+.th-filter {
+  position: relative;
+  padding-right: 24px; /* place pour la flèche */
+}
+
+.filter-trigger {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1px solid #d1d5db;
+  width: 18px;
+  height: 18px;
+  border-radius: 2px;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.filter-trigger svg {
+  width: 12px;
+  height: 12px;
+}
+
+.filter-trigger.is-filtered {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+/* === Popup de filtre (unique) === */
+.column-filter {
+  position: fixed;            /* toujours par rapport à la fenêtre */
+  z-index: 22000;             /* au-dessus des cartes/headers */
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(15,23,42,.18);
+  padding: 8px 0;
+  min-width: 260px;
+  max-height: 355px;
+  overflow: hidden;
+  font-size: 13px;
+}
+.column-filter {z-index: 999999 !important;}
+.column-filter .cf-header { padding: 6px 12px 8px; font-weight: 500; border-bottom: 1px solid #e5e7eb; }
+.column-filter .cf-search { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; }
+.column-filter .cf-search input { width:100%; padding:6px 8px; border:1px solid #d1d5db; border-radius:6px; }
+.column-filter .cf-list { padding: 4px 12px; max-height: 200px; overflow-y: auto; }
+.column-filter .cf-list label { display:flex; align-items:center; gap:6px; padding:2px 0; }
+.column-filter .cf-footer { padding: 8px 12px; display:flex; justify-content:flex-end; gap:8px; }
+.hidden { display: none !important; }
+
+.cf-sort {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 4px;
+}
+
+.cf-sort button {
+    background: transparent;
+    border: none;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+    color: #1f2937;
+    padding: 4px;
+}
+
+.cf-sort button:hover {
+    background: #f3f4f6;
+    border-radius: 4px;
 }

@@ -1,14 +1,7 @@
-# API web
-flask>=3.0,<4.0
-flask-cors>=4.0,<5.0
-
-# Tunnel SSH (sshtunnel + paramiko compatible)
-sshtunnel==0.4.0
-paramiko<3.4
-
-# Base de données (SQLAlchemy + driver PyMySQL)
-sqlalchemy>=2.0,<3.0
-pymysql>=1.1,<2.0
-
-# Variables d'environnement (.env)
-python-dotenv>=1.0,<2.0
+Flask
+Flask-Cors
+mysql-connector-python
+sshtunnel
+SQLAlchemy
+pywin32
+paramiko<3.0
